@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historial de Compras · HABERS</title>
+  <style>
+    /* ===== Colores tomados de tu Excel Historial_Compras_2026 ===== */
+    :root {
+      --azul: #1F3864;        /* encabezado de la tabla */
+      --zebra: #EAF0FA;       /* filas alternas */
+      --verde: #C5E0B4;       /* columna de precio unitario */
+      --borde: #B7C3D6;
+      --texto: #1b1b1b;
+      --fondo: #F3F5F9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      color: var(--texto);
+      background: var(--fondo);
+    }
+
+    /* ===== Barra superior ===== */
+    header {
+      background: var(--azul);
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 18px; }
+    header small { opacity: .8; }
+    #btnSalir {
+      background: transparent; color: #fff; border: 1px solid #fff;
+      padding: 6px 12px; border-radius: 4px; cursor: pointer;
+    }
+
+    main { padding: 18px 24px; }
+
+    /* ===== Pestañas ===== */
+    .pestanas { display: flex; gap: 4px; border-bottom: 3px solid var(--azul); }
+    .pestana {
+      padding: 10px 22px;
+      background: #dfe5ef;
+      border: 1px solid var(--borde);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      font-weight: bold;
+      cursor: pointer;
+      color: var(--azul);
+      font-size: 13px;
+    }
+    .pestana.activa { background: var(--azul); color: #fff; }
+
+    /* ===== Zona superior: captura manual (izq) + XML (der) ===== */
+    .zona-superior {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    @media (max-width: 900px) { .zona-superior { grid-template-columns: 1fr; } }
+
+    .recuadro {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .recuadro h3 {
+      margin: 0 0 10px; font-size: 14px; color: var(--azul);
+    }
+
+    /* Formulario compacto (se usa en captura manual y en la ventana de edición) */
+    .formulario {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px 10px;
+    }
+    .formulario label {
+      display: flex; flex-direction: column;
+      font-size: 11px; font-weight: bold; color: #444; gap: 3px;
+    }
+    .formulario input, .formulario select {
+      padding: 6px 8px;
+      border: 1px solid var(--borde);
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+    }
+    .formulario .ancho2 { grid-column: span 2; }
+    .formulario .ancho4 { grid-column: span 4; }
+    .pie-formulario {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; gap: 10px;
+    }
+    .importe-vista { color: #444; }
+    .importe-vista b { color: var(--azul); font-size: 14px; }
+    .btn {
+      background: var(--azul); color: #fff; border: none;
+      padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;
+    }
+    .btn.secundario { background: #dfe5ef; color: var(--azul); }
+
+    #dropzone {
+      border: 2px dashed var(--azul);
+      background: #fff;
+      border-radius: 8px;
+      padding: 26px;
+      text-align: center;
+      cursor: pointer;
+      transition: background .15s;
+      display: flex; flex-direction: column; justify-content: center;
+      min-height: 100%;
+    }
+    #dropzone.encima { background: var(--zebra); }
+    #dropzone b { color: var(--azul); font-size: 15px; }
+    #dropzone p { margin: 6px 0 0; color: #555; }
+
+    #mensajes { margin-bottom: 12px; }
+    .msg {
+      padding: 8px 12px; border-radius: 4px; margin-bottom: 6px;
+      border-left: 4px solid;
+    }
+    .msg.ok   { background: #e7f4e4; border-color: #3c8d2f; }
+    .msg.aviso{ background: #fff6dd; border-color: #c99700; }
+    .msg.error{ background: #fde8e8; border-color: #c0392b; }
+
+    /* ===== Buscador ===== */
+    .barra {
+      display: flex; gap: 12px; align-items: center;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    #buscador {
+      flex: 1; min-width: 260px;
+      padding: 9px 12px;
+      border: 1px solid var(--borde);
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    #contador { color: #444; }
+    #avisoFiltro {
+      background: #fff6dd; border: 1px solid #e3c25c; border-radius: 4px;
+      padding: 4px 10px;
+    }
+    #avisoFiltro button {
+      border: none; background: none; color: #c0392b; cursor: pointer; font-weight: bold;
+    }
+
+    /* ===== Tabla estilo Excel ===== */
+    .contenedor-tabla {
+      background: #fff;
+      border: 1px solid var(--borde);
+      max-height: 65vh;
+      overflow: auto;
+    }
+    table { border-collapse: collapse; width: 100%; }
+    th, td {
+      border: 1px solid var(--borde);
+      padding: 5px 8px;
+      vertical-align: top;
+    }
+    thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--azul);
+      color: #fff;
+      font-size: 12px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    /* Botón de filtro dentro del encabezado de Proveedor */
+    #btnFiltroProv {
+      margin-left: 6px;
+      background: #fff; color: var(--azul);
+      border: 1px solid #fff; border-radius: 3px;
+      font-size: 10px; padding: 1px 5px; cursor: pointer;
+    }
+    #btnFiltroProv.activo { background: #FFD966; border-color: #FFD966; }
+
+    tbody tr:nth-child(even) td { background: var(--zebra); }
+    tbody tr:nth-child(odd)  td { background: #fff; }
+    tbody tr:hover td { background: #fff3c4; }
+    td.num { text-align: right; white-space: nowrap; }
+    td.precio { background: var(--verde) !important; font-weight: bold; }
+    td.nowrap { white-space: nowrap; }
+    tfoot td {
+      position: sticky; bottom: 0;
+      background: var(--azul); color: #fff; font-weight: bold;
+    }
+    .acciones { white-space: nowrap; }
+    .accion {
+      border: none; background: none; cursor: pointer;
+      font-size: 14px; opacity: .5; padding: 0 2px;
+    }
+    .accion:hover { opacity: 1; }
+
+    /* ===== Ventana del filtro de proveedores ===== */
+    #panelProveedores {
+      position: fixed; z-index: 20;
+      width: 360px; background: #fff;
+      border: 1px solid var(--borde); border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      padding: 10px; color: var(--texto); font-weight: normal; text-align: left;
+    }
+    #buscaProveedor {
+      width: 100%; padding: 6px 8px; margin-bottom: 6px;
+      border: 1px solid var(--borde); border-radius: 4px;
+    }
+    #listaProveedores {
+      max-height: 280px; overflow: auto;
+      border: 1px solid var(--borde); border-radius: 4px;
+    }
+    #listaProveedores label {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px; cursor: pointer; font-size: 12px;
+    }
+    #listaProveedores label:hover { background: var(--zebra); }
+    #listaProveedores .nombre { flex: 1; }
+    #listaProveedores .monto { color: #666; font-size: 11px; white-space: nowrap; }
+    #listaProveedores .todos { border-bottom: 1px solid var(--borde); font-weight: bold; }
+    .botones-panel { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+    /* ===== Ventana de edición ===== */
+    #fondoEdicion {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(20, 30, 50, .45);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #ventanaEdicion {
+      width: min(680px, 94vw); background: #fff;
+      border-radius: 8px; padding: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    #ventanaEdicion h3 { margin: 0 0 4px; color: var(--azul); }
+    #ventanaEdicion .sub { margin: 0 0 12px; color: #666; font-size: 12px; }
+
+    /* ===== Pantalla de acceso ===== */
+    #login {
+      max-width: 340px; margin: 12vh auto; background: #fff;
+      border: 1px solid var(--borde); border-radius: 8px; padding: 26px;
+    }
+    #login h2 { margin-top: 0; color: var(--azul); }
+    #login input {
+      width: 100%; padding: 9px; margin-bottom: 10px;
+      border: 1px solid var(--borde); border-radius: 4px;
+    }
+    #login button {
+      width: 100%; padding: 10px; background: var(--azul); color: #fff;
+      border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+    }
+    #errorLogin { color: #c0392b; margin-top: 8px; min-height: 16px; }
+    .oculto { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- ========== PANTALLA DE ACCESO ========== -->
+  <div id="login">
+    <h2>Historial de Compras</h2>
+    <input type="email" id="correo" placeholder="Correo">
+    <input type="password" id="clave" placeholder="Contraseña">
+    <button id="btnEntrar">Entrar</button>
+    <div id="errorLogin"></div>
+  </div>
+
+  <!-- ========== APLICACIÓN ========== -->
+  <div id="app" class="oculto">
+    <header>
+      <div>
+        <h1>Historial de Compras</h1>
+        <small>HABERS · Facturas CFDI</small>
+      </div>
+      <button id="btnSalir">Cerrar sesión</button>
+    </header>
+
+    <main>
+      <div class="pestanas">
+        <button class="pestana activa" data-coleccion="adquisiciones">ADQUISICIONES</button>
+        <button class="pestana" data-coleccion="compras_centro">COMPRAS DEL CENTRO</button>
+      </div>
+
+      <!-- Zona superior dividida en dos -->
+      <div class="zona-superior">
+
+        <!-- IZQUIERDA: captura manual -->
+        <div class="recuadro">
+          <h3>✍️ Captura manual <span id="destinoManual" style="font-weight:normal;color:#666"></span></h3>
+          <form id="formManual" class="formulario" autocomplete="off">
+            <label>Fecha de emisión
+              <input type="date" name="fecha" required>
+            </label>
+            <label>Número de factura / folio
+              <input type="text" name="folio" placeholder="(sin CFDI)">
+            </label>
+            <label class="ancho2">Proveedor / Empresa emisora
+              <input type="text" name="proveedor" list="listaNombresProveedores" required>
+            </label>
+            <label class="ancho4">Descripción del producto / servicio
+              <input type="text" name="descripcion" required>
+            </label>
+            <label>Cantidad
+              <input type="number" name="cantidad" step="any" min="0" value="1" required>
+            </label>
+            <label>Unidad de medida
+              <input type="text" name="unidad" list="listaUnidades" placeholder="PIEZA">
+            </label>
+            <label class="ancho2">Precio unitario (sin IVA)
+              <input type="number" name="precioUnitario" step="any" required>
+            </label>
+          </form>
+          <div class="pie-formulario">
+            <span class="importe-vista">Importe: <b id="importeManual">$0.00</b></span>
+            <button class="btn" type="submit" form="formManual">Guardar registro</button>
+          </div>
+        </div>
+
+        <!-- DERECHA: arrastrar XML -->
+        <div id="dropzone">
+          <b>📄 Arrastra aquí tus archivos XML (CFDI)</b>
+          <p>o haz clic para elegirlos · puedes soltar varios a la vez</p>
+          <p id="destino"></p>
+          <input type="file" id="selectorArchivos" accept=".xml" multiple hidden>
+        </div>
+      </div>
+
+      <div id="mensajes"></div>
+
+      <div class="barra">
+        <input type="search" id="buscador" placeholder="🔎 Buscar frase en proveedor, descripción o folio...">
+        <span id="avisoFiltro" class="oculto"></span>
+        <span id="contador"></span>
+      </div>
+
+      <div class="contenedor-tabla">
+        <table>
+          <thead>
+            <tr>
+              <th>Mes</th>
+              <th>Fecha de Emisión</th>
+              <th>Número de Factura / Folio</th>
+              <th>Proveedor / Empresa Emisora<button id="btnFiltroProv" title="Filtrar por proveedor">▼</button></th>
+              <th>Descripción del Producto / Servicio</th>
+              <th>Cantidad</th>
+              <th>Unidad de Medida</th>
+              <th>Precio Unitario (Sin IVA)</th>
+              <th>Importe (Sin IVA)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoTabla">
+            <tr><td colspan="10">Cargando...</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="8">TOTAL (registros mostrados)</td>
+              <td class="num" id="totalImporte">$0.00</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- Listas de sugerencias para los campos de texto -->
+  <datalist id="listaNombresProveedores"></datalist>
+  <datalist id="listaUnidades">
+    <option value="PIEZA"><option value="SERVICIO"><option value="METROS">
+    <option value="KILOGRAMO"><option value="CAJA"><option value="JUEGO">
+    <option value="PAQUETE"><option value="ROLLO"><option value="LITRO">
+    <option value="NO APLICA"><option value="Pago">
+  </datalist>
+
+  <!-- ========== VENTANA: FILTRO DE PROVEEDORES ========== -->
+  <div id="panelProveedores" class="oculto">
+    <input type="search" id="buscaProveedor" placeholder="Buscar proveedor...">
+    <div id="listaProveedores"></div>
+    <div class="botones-panel">
+      <button class="btn secundario" id="btnLimpiarProv">Quitar filtro</button>
+      <button class="btn" id="btnAplicarProv">Aplicar</button>
+    </div>
+  </div>
+
+  <!-- ========== VENTANA: EDITAR FILA ========== -->
+  <div id="fondoEdicion" class="oculto">
+    <div id="ventanaEdicion">
+      <h3>✏️ Editar registro</h3>
+      <p class="sub" id="subEdicion"></p>
+      <form id="formEdicion" class="formulario" autocomplete="off">
+        <label>Mes
+          <select name="mes">
+            <option>Enero</option><option>Febrero</option><option>Marzo</option>
+            <option>Abril</option><option>Mayo</option><option>Junio</option>
+            <option>Julio</option><option>Agosto</option><option>Septiembre</option>
+            <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          </select>
+        </label>
+        <label>Fecha de emisión
+          <input type="date" name="fecha">
+        </label>
+        <label class="ancho2">Número de factura / folio
+          <input type="text" name="folio">
+        </label>
+        <label class="ancho4">Proveedor / Empresa emisora
+          <input type="text" name="proveedor" list="listaNombresProveedores" required>
+        </label>
+        <label class="ancho4">Descripción del producto / servicio
+          <input type="text" name="descripcion" required>
+        </label>
+        <label>Cantidad
+          <input type="number" name="cantidad" step="any">
+        </label>
+        <label>Unidad de medida
+          <input type="text" name="unidad" list="listaUnidades">
+        </label>
+        <label>Precio unitario (sin IVA)
+          <input type="number" name="precioUnitario" step="any">
+        </label>
+        <label>Importe (sin IVA)
+          <input type="number" name="importe" step="any">
+        </label>
+      </form>
+      <div class="pie-formulario">
+        <span class="importe-vista" style="font-size:12px">El importe se recalcula solo si cambias cantidad o precio.</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn secundario" id="btnCancelarEdicion" type="button">Cancelar</button>
+          <button class="btn" type="submit" form="formEdicion">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
